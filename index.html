@@ -3,184 +3,243 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Aristocrat Apex-Pro v4.0</title>
+    <title>Aristocrat Apex-Pro | Engineered by Shivank Sharma</title>
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
-        @keyframes reel-blur-spin {
-            0% { transform: translateY(-10%); filter: blur(0px); }
-            50% { transform: translateY(10%); filter: blur(8px); }
-            100% { transform: translateY(-10%); filter: blur(0px); }
+        @keyframes reel-spin {
+            0% { transform: translateY(-2%); filter: blur(0px); }
+            50% { transform: translateY(2%); filter: blur(20px); }
+            100% { transform: translateY(-2%); filter: blur(0px); }
         }
-        .spinning { animation: reel-blur-spin 0.15s linear infinite; }
-        
+        .spinning { animation: reel-spin 0.08s linear infinite; }
+
+        @keyframes loss-shake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-8px); }
+            40% { transform: translateX(8px); }
+            60% { transform: translateX(-5px); }
+            80% { transform: translateX(5px); }
+        }
+        .shake { animation: loss-shake 0.1s ease-in-out 4; border-color: #ef4444 !important; background-color: #450a0a !important; }
+
         @keyframes win-glow {
-            0%, 100% { box-shadow: 0 0 20px #fbbf24; border-color: #fbbf24; }
-            50% { box-shadow: 0 0 50px #f59e0b; border-color: #f59e0b; }
+            0%, 100% { box-shadow: 0 0 25px #fbbf24; border-color: #fbbf24; transform: scale(1); }
+            50% { box-shadow: 0 0 60px #f59e0b; border-color: #f59e0b; transform: scale(1.02); }
         }
-        .win-border { animation: win-glow 0.5s ease-in-out infinite; }
+        .win-glow { animation: win-glow 0.4s ease-in-out infinite; z-index: 50; }
+
+        body { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+        
+        @media (max-height: 750px) {
+            .cabinet-container { transform: scale(0.85); transform-origin: center top; }
+        }
+        @media (max-height: 600px) {
+            .cabinet-container { transform: scale(0.7); transform-origin: center top; }
+        }
+
+        input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
     </style>
 </head>
-<body class="bg-black text-white font-sans overflow-hidden">
+<body class="bg-black text-white font-sans overflow-x-hidden">
     <div id="root"></div>
 
     <script type="text/babel">
         const { useState, useEffect } = React;
 
         const SYMBOLS = [
-            { char: '🍒', name: 'Cherry', mult: 5, color: 'text-green-400' },
-            { char: '🍋', name: 'Lemon', mult: 10, color: 'text-purple-400' },
-            { char: '🔔', name: 'Bell', mult: 25, color: 'text-cyan-400' },
-            { char: '7️⃣', name: 'Seven', mult: 80, color: 'text-red-500' },
-            { char: '💎', name: 'Jackpot', mult: 250, color: 'text-yellow-400' }
+            { char: '🍒', name: 'Cherry', mult: 5 },
+            { char: '🍋', name: 'Lemon', mult: 10 },
+            { char: '🔔', name: 'Bell', mult: 40 },
+            { char: '7️⃣', name: 'Seven', mult: 150 },
+            { char: '💎', name: 'Jackpot', mult: 1000 }
         ];
 
-        function SlotMachine() {
-            const [credits, setCredits] = useState(0);
+        const BET_OPTIONS = [10, 50, 100, 500, 1000, 'ALL'];
+
+        function SlotApp() {
+            const [credits, setCredits] = useState(1000);
             const [reels, setReels] = useState([SYMBOLS[0], SYMBOLS[1], SYMBOLS[2]]);
             const [isSpinning, setIsSpinning] = useState(false);
-            const [lastWin, setLastWin] = useState(0);
-            const [totalSessionWins, setTotalSessionWins] = useState(0);
-            const [showWarning, setShowWarning] = useState(true);
+            const [currentBet, setCurrentBet] = useState(10);
+            const [totalWins, setTotalWins] = useState(0);
+            const [showIntro, setShowIntro] = useState(true);
             const [isWinner, setIsWinner] = useState(false);
+            const [isLoser, setIsLoser] = useState(false);
+            const [isGameOver, setIsGameOver] = useState(false);
             const [isCashedOut, setIsCashedOut] = useState(false);
 
-            const startGame = (val) => {
-                setCredits(Number(val) || 100);
-                setShowWarning(false);
-            };
-
-            const handleCashOut = () => {
-                if (totalSessionWins > 0) {
-                    setIsCashedOut(true);
-                } else {
-                    if (confirm("You haven't won anything yet. If you exit now, all remaining credits will be forfeited. Continue?")) {
-                        window.location.reload();
-                    }
-                }
+            const triggerConfetti = () => {
+                const end = Date.now() + 3500;
+                (function frame() {
+                    confetti({ particleCount: 5, angle: 60, spread: 70, origin: { x: 0, y: 0.6 } });
+                    confetti({ particleCount: 5, angle: 120, spread: 70, origin: { x: 1, y: 0.6 } });
+                    if (Date.now() < end) requestAnimationFrame(frame);
+                }());
             };
 
             const spin = () => {
-                if (credits < 10 || isSpinning) return;
+                const actualWager = currentBet === 'ALL' ? credits : currentBet;
+                if (credits < actualWager || isSpinning || actualWager <= 0) return;
+                
+                setIsSpinning(true); setIsWinner(false); setIsLoser(false);
+                const postBetBalance = credits - actualWager;
+                setCredits(postBetBalance);
 
-                setIsSpinning(true);
-                setIsWinner(false);
-                setCredits(prev => prev - 10);
-                setLastWin(0);
-
-                const interval = setInterval(() => {
-                    setReels([
-                        SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)],
-                        SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)],
-                        SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)]
-                    ]);
-                }, 100);
+                const timer = setInterval(() => {
+                    setReels([SYMBOLS[Math.floor(Math.random()*5)], SYMBOLS[Math.floor(Math.random()*5)], SYMBOLS[Math.floor(Math.random()*5)]]);
+                }, 60);
 
                 setTimeout(() => {
-                    clearInterval(interval);
-                    const final = [
-                        SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)],
-                        SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)],
-                        SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)]
-                    ];
+                    clearInterval(timer);
+                    const final = [SYMBOLS[Math.floor(Math.random()*5)], SYMBOLS[Math.floor(Math.random()*5)], SYMBOLS[Math.floor(Math.random()*5)]];
                     setReels(final);
                     setIsSpinning(false);
 
                     if (final[0].name === final[1].name && final[1].name === final[2].name) {
-                        const win = 10 * final[0].mult;
-                        setLastWin(win);
-                        setCredits(prev => prev + win);
-                        setTotalSessionWins(prev => prev + win);
+                        const win = actualWager * final[0].mult;
+                        setCredits(postBetBalance + win);
+                        setTotalWins(w => w + win);
                         setIsWinner(true);
+                        triggerConfetti();
+                    } else {
+                        setIsLoser(true);
+                        if (postBetBalance <= 0) {
+                            setTimeout(() => setIsGameOver(true), 1200);
+                        }
                     }
-                }, 2000);
+                }, 1800);
             };
 
-            if (isCashedOut) {
-                return (
-                    <div className="flex items-center justify-center min-h-screen bg-neutral-950 p-6">
-                        <div className="bg-white text-black p-10 rounded-lg max-w-sm w-full font-mono shadow-[0_0_50px_rgba(255,255,255,0.2)]">
-                            <h2 className="text-center font-bold text-2xl border-b-2 border-black pb-4 mb-4">CASHOUT VOUCHER</h2>
-                            <div className="space-y-2 text-lg">
-                                <div className="flex justify-between"><span>SESSION WINS:</span> <span>${totalSessionWins}</span></div>
-                                <div className="flex justify-between font-black text-2xl border-t border-black pt-4"><span>TOTAL PAYOUT:</span> <span>${credits}</span></div>
-                            </div>
-                            <div className="mt-8 text-center text-xs text-gray-500 italic">"Thank you for playing Aristocrat Apex-Pro"</div>
-                            <button onClick={() => window.location.reload()} className="mt-8 w-full bg-black text-white py-4 rounded hover:bg-gray-800 transition">NEW SESSION</button>
-                        </div>
-                    </div>
-                );
-            }
+            const adjustCredits = (amt) => setCredits(c => Math.max(0, c + amt));
 
-            if (showWarning) {
-                return (
-                    <div className="flex items-center justify-center min-h-screen bg-gray-900 px-4">
-                        <div className="bg-black border-4 border-red-600 p-10 rounded-2xl max-w-md text-center">
-                            <h1 className="text-4xl font-black text-red-600 mb-6 uppercase">Legal Notice</h1>
-                            <p className="text-gray-400 mb-8 italic leading-relaxed">"Wagers are final. Credits are only redeemable if a winning combination is achieved during the session."</p>
-                            <input type="number" placeholder="Enter Credits" className="w-full bg-gray-900 border-2 border-gray-700 p-4 rounded-lg mb-6 text-xl text-center text-white outline-none" id="credInput"/>
-                            <button onClick={() => startGame(document.getElementById('credInput').value)} className="w-full bg-red-600 hover:bg-red-700 text-white text-xl font-bold py-4 rounded-lg transition active:scale-95 shadow-lg">INITIALIZE WAGER</button>
+            if (isCashedOut) return (
+                <div className="min-h-screen bg-black flex items-center justify-center p-4">
+                    <div className="bg-zinc-100 text-zinc-900 p-8 rounded shadow-2xl font-mono w-full max-w-sm border-t-[15px] border-black">
+                        <h2 className="text-2xl font-black italic border-b-2 border-zinc-300 pb-2 uppercase text-center">Receipt</h2>
+                        <div className="space-y-4 py-6 text-lg">
+                            <div className="flex justify-between"><span>WIN TOTAL:</span> <span className="font-bold">${totalWins}</span></div>
+                            <div className="flex justify-between font-black text-3xl border-t-4 border-black border-dotted pt-4"><span>PAYOUT:</span> <span>${credits}</span></div>
+                        </div>
+                        <p className="text-center text-[10px] text-zinc-400 font-bold uppercase mb-4">Engineer: Shivank Sharma</p>
+                        <button onClick={() => window.location.reload()} className="w-full bg-black text-white font-black py-4 rounded uppercase tracking-widest shadow-xl">Restart Session</button>
+                    </div>
+                </div>
+            );
+
+            if (isGameOver) return (
+                <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6 text-center">
+                    <h1 className="text-red-600 text-7xl md:text-8xl font-black mb-4 uppercase italic">Bust</h1>
+                    <p className="text-zinc-700 font-mono text-xl mb-12 uppercase tracking-[.3em]">System Tilt: Out of Credits</p>
+                    <button onClick={() => window.location.reload()} className="bg-zinc-900 px-12 py-5 text-white border border-zinc-800 rounded-full transition font-black uppercase tracking-widest active:scale-95">Buy-In</button>
+                    <p className="mt-8 text-zinc-800 font-black uppercase text-[10px] tracking-widest italic">Designed by Shivank Sharma</p>
+                </div>
+            );
+
+            if (showIntro) return (
+                <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-4">
+                    <div className="bg-zinc-900 border-2 border-yellow-600/20 p-8 md:p-12 max-w-lg w-full rounded-[2.5rem] shadow-2xl relative text-center">
+                        <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-yellow-700 to-yellow-500"></div>
+                        <h1 className="text-3xl md:text-4xl font-black text-yellow-500 uppercase italic mb-6">High-Limit Suite</h1>
+                        
+                        <div className="bg-black/50 p-6 rounded-3xl border border-zinc-800 mb-10 space-y-4">
+                            <h3 className="text-yellow-700 font-black uppercase text-xs tracking-widest">House Rules</h3>
+                            <p className="text-sm text-zinc-500 italic font-medium leading-relaxed">"Session credits are virtual. Exit without winnings results in bankroll forfeiture. Engineered by Shivank Sharma for Technical Evaluation."</p>
+                        </div>
+                        
+                        <div className="flex flex-col items-center gap-6">
+                            <div className="flex items-center bg-black p-3 rounded-2xl border-2 border-zinc-800 w-full">
+                                <button onClick={() => adjustCredits(-500)} className="w-12 h-12 md:w-16 md:h-16 bg-zinc-800 rounded-xl font-black text-xl">-</button>
+                                <input type="number" value={credits} onChange={(e) => setCredits(Math.max(0, parseInt(e.target.value)||0))} className="bg-transparent text-center w-full text-3xl md:text-5xl font-black text-yellow-500 outline-none"/>
+                                <button onClick={() => adjustCredits(500)} className="w-12 h-12 md:w-16 md:h-16 bg-zinc-800 rounded-xl font-black text-xl">+</button>
+                            </div>
+                            <button onClick={() => credits > 0 && setShowIntro(false)} className="w-full py-5 md:py-7 text-xl md:text-2xl font-black uppercase rounded-2xl bg-gradient-to-b from-yellow-400 to-yellow-600 text-black active:scale-95 transition shadow-xl">Commence Session</button>
                         </div>
                     </div>
-                );
-            }
+                </div>
+            );
 
             return (
-                <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-4">
-                    <div className={`relative w-full max-w-md bg-zinc-900 border-8 border-zinc-800 rounded-[3rem] shadow-2xl transition-all duration-500 ${isWinner ? 'scale-105' : ''}`}>
+                <div className="min-h-screen bg-black flex flex-col items-center justify-center p-2 md:p-4 overflow-hidden">
+                    <div className="cabinet-container w-full max-w-[450px] bg-zinc-900 border-x-8 md:border-x-[15px] border-zinc-800 rounded-[3rem] md:rounded-[5rem] shadow-2xl relative flex flex-col">
                         
-                        {isWinner && (
-                            <div className="absolute inset-0 pointer-events-none z-50 flex items-center justify-center">
-                                <div className="bg-yellow-500/20 w-full h-full animate-pulse rounded-[2.5rem] flex items-center justify-center">
-                                    <h2 className="text-6xl font-black text-yellow-400 drop-shadow-[0_0_20px_rgba(251,191,36,1)] rotate-[-10deg] uppercase italic">BIG WIN!</h2>
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="bg-zinc-800 p-6 text-center rounded-t-[2.2rem]">
-                            <h2 className="text-2xl font-black text-yellow-500 tracking-widest italic uppercase">Apex-Pro v4.0</h2>
-                            <p className="text-[10px] text-zinc-500 font-bold tracking-[0.3em]">ARISTOCRAT TECHNOLOGIES</p>
+                        <div className="p-6 md:p-8 text-center border-b-2 border-black">
+                            <h2 className="text-xl md:text-2xl font-black text-yellow-600 italic tracking-tighter uppercase leading-none">Aristocrat <span className="text-white">Apex-Pro</span></h2>
+                            <p className="text-[9px] text-zinc-500 font-black tracking-[.4em] mt-1 uppercase italic">Engineered by Shivank Sharma</p>
                         </div>
 
-                        <div className="grid grid-cols-2 bg-black border-y-2 border-zinc-800 p-6">
-                            <div className="border-r border-zinc-800 text-center">
-                                <span className="text-xs text-zinc-500 uppercase font-bold">Credits</span>
-                                <div className="text-4xl font-mono text-green-500">${credits}</div>
+                        <div className="grid grid-cols-2 bg-black py-4 md:py-8 border-y-4 border-zinc-800 font-mono text-center">
+                            <div className="border-r border-zinc-900">
+                                <span className="text-[10px] text-zinc-600 uppercase font-black tracking-widest block mb-1 md:mb-2">Bankroll</span>
+                                <div className="text-2xl md:text-4xl text-green-500 font-black tracking-tighter">${credits}</div>
                             </div>
-                            <div className="text-center">
-                                <span className="text-xs text-zinc-500 uppercase font-bold">Session Wins</span>
-                                <div className="text-4xl font-mono text-yellow-400">${totalSessionWins}</div>
+                            <div>
+                                <span className="text-[10px] text-zinc-600 uppercase font-black tracking-widest block mb-1 md:mb-2">Total Win</span>
+                                <div className="text-2xl md:text-4xl text-yellow-400 font-black tracking-tighter">${totalWins}</div>
                             </div>
                         </div>
 
-                        <div className="bg-black px-4 py-12 flex justify-center gap-2">
+                        <div className={`bg-black py-12 md:py-24 flex justify-center gap-2 md:gap-4 transition-colors duration-700 ${isLoser ? 'bg-red-950/30' : ''}`}>
                             {reels.map((s, i) => (
-                                <div key={i} className={`w-28 h-40 bg-zinc-800 rounded-xl flex items-center justify-center text-6xl shadow-inner border-2 ${isSpinning ? 'spinning' : 'border-zinc-700'} ${isWinner ? 'win-border' : ''}`}>{s.char}</div>
+                                <div key={i} className={`w-20 h-36 md:w-28 md:h-56 bg-zinc-900 rounded-[1.5rem] md:rounded-[3rem] flex items-center justify-center text-5xl md:text-7xl shadow-2xl border-4 transition-all duration-100 
+                                    ${isSpinning ? 'spinning border-zinc-800' : 'border-zinc-700'} 
+                                    ${isWinner ? 'win-glow bg-zinc-800 scale-105' : ''} 
+                                    ${isLoser ? 'shake' : ''}`}>
+                                    {s.char}
+                                </div>
                             ))}
                         </div>
 
-                        <div className="p-10 space-y-6 bg-zinc-900 rounded-b-[2.2rem]">
-                            <button 
-                                onClick={spin}
-                                disabled={isSpinning || credits < 10}
-                                className={`w-full py-8 rounded-2xl text-3xl font-black shadow-[0_8px_0_rgb(180,83,9)] active:translate-y-1 active:shadow-none transition-all ${isSpinning ? 'bg-zinc-700 shadow-none text-zinc-500' : 'bg-gradient-to-b from-yellow-400 to-yellow-600 text-black'}`}
-                            >
-                                {isSpinning ? 'SPINNING' : 'PLAY ($10)'}
-                            </button>
+                        <div className="p-6 md:p-10 bg-zinc-900 rounded-b-[3rem] md:rounded-b-[5rem] border-t-2 border-zinc-800">
+                            
+                            <div className="flex flex-wrap justify-between w-full gap-1 mb-6 md:mb-8">
+                                {BET_OPTIONS.map(b => (
+                                    <button 
+                                        key={b} 
+                                        onClick={() => setCurrentBet(b)} 
+                                        className={`flex-1 min-w-[50px] py-3 md:py-4 rounded-xl font-black text-[9px] md:text-[10px] tracking-tighter transition-all ${currentBet === b ? 'bg-yellow-500 text-black shadow-lg shadow-yellow-500/40 border-b-4 border-yellow-700' : 'bg-black text-zinc-700 hover:text-zinc-300'}`}
+                                    >
+                                        {b === 'ALL' ? 'ALL' : `$${b}`}
+                                    </button>
+                                ))}
+                            </div>
 
-                            <button onClick={handleCashOut} className="w-full text-zinc-600 hover:text-green-500 text-sm font-bold uppercase tracking-widest transition">
-                                [ Cash Out Session ]
-                            </button>
+                            <div className="flex gap-2 md:gap-4 items-stretch mb-4">
+                                <button 
+                                    onClick={() => {
+                                        if(totalWins > 0) setIsCashedOut(true);
+                                        else if(confirm("Terminate and forfeit bankroll?")) window.location.reload();
+                                    }} 
+                                    disabled={isSpinning}
+                                    className={`w-1/4 bg-red-950 border-2 md:border-4 border-red-900 rounded-2xl md:rounded-3xl flex flex-col items-center justify-center p-2 active:scale-95 transition-all ${isSpinning ? 'opacity-20' : 'opacity-100'}`}
+                                >
+                                    <span className="text-[8px] font-black text-red-500">EXIT</span>
+                                    <div className="w-full h-0.5 md:h-1 bg-red-600 my-1 rounded-full animate-pulse"></div>
+                                    <span className="text-[7px] md:text-[8px] font-black text-red-500 uppercase">Collect</span>
+                                </button>
+
+                                <button 
+                                    onClick={spin} 
+                                    disabled={isSpinning || credits < (currentBet === 'ALL' ? 10 : currentBet)}
+                                    className={`flex-1 py-6 md:py-10 rounded-[2rem] md:rounded-[3rem] text-3xl md:text-5xl font-black shadow-[0_10px_0_#451a03] active:translate-y-2 active:shadow-none transition-all
+                                    ${isSpinning || credits < (currentBet === 'ALL' ? 10 : currentBet) ? 'bg-zinc-800 text-zinc-700 shadow-none' : 'bg-gradient-to-b from-yellow-400 to-orange-600 text-black hover:brightness-110'}`}
+                                >
+                                    {isSpinning ? '...' : 'PLAY'}
+                                </button>
+                            </div>
+
+                            <div className="text-center mt-4 border-t border-zinc-800 pt-4">
+                                <p className="text-[10px] text-zinc-700 font-black uppercase tracking-[0.5em]">Made by Shivank Sharma</p>
+                            </div>
                         </div>
                     </div>
                 </div>
             );
         }
-
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<SlotMachine />);
+        ReactDOM.createRoot(document.getElementById('root')).render(<SlotApp />);
     </script>
 </body>
 </html>
