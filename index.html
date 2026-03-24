@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aristocrat Apex-Pro Web Demo</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes reel-spin {
+            0% { transform: translateY(0); }
+            100% { transform: translateY(-50%); }
+        }
+        .animate-reel { animation: reel-spin 0.2s linear infinite; }
+    </style>
+</head>
+<body class="bg-gray-900 text-white font-sans">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const SYMBOLS = [
+            { char: '🍒', name: 'Cherry', mult: 2, color: 'text-green-400' },
+            { char: '🍋', name: 'Lemon', mult: 5, color: 'text-purple-400' },
+            { char: '🔔', name: 'Bell', mult: 10, color: 'text-cyan-400' },
+            { char: '7️⃣', name: 'Seven', mult: 20, color: 'text-red-500' },
+            { char: '💎', name: 'Jackpot', mult: 100, color: 'text-yellow-400' }
+        ];
+
+        function SlotMachine() {
+            const [credits, setCredits] = useState(0);
+            const [bet] = useState(10);
+            const [reels, setReels] = useState([SYMBOLS[0], SYMBOLS[2], SYMBOLS[3]]);
+            const [spinning, setSpinning] = useState(false);
+            const [lastWin, setLastWin] = useState(0);
+            const [showWarning, setShowWarning] = useState(true);
+            const [gameStarted, setGameStarted] = useState(false);
+
+            const startGame = (initialCredits) => {
+                setCredits(initialCredits);
+                setGameStarted(true);
+                setShowWarning(false);
+            };
+
+            const spin = () => {
+                if (credits < bet || spinning) return;
+
+                setSpinning(true);
+                setCredits(prev => prev - bet);
+                setLastWin(0);
+
+                // Simulate delay
+                setTimeout(() => {
+                    const result = [
+                        SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)],
+                        SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)],
+                        SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)]
+                    ];
+                    
+                    setReels(result);
+                    setSpinning(false);
+
+                    if (result[0].name === result[1].name && result[1].name === result[2].name) {
+                        const win = bet * result[0].mult;
+                        setLastWin(win);
+                        setCredits(prev => prev + win);
+                    }
+                }, 1500);
+            };
+
+            if (showWarning) {
+                return (
+                    <div className="flex items-center justify-center min-h-screen p-4">
+                        <div className="bg-gray-800 border-2 border-red-600 p-8 rounded-xl max-w-md text-center shadow-2xl">
+                            <h1 className="text-3xl font-bold text-red-500 mb-4">!!! WARNING !!!</h1>
+                            <p className="mb-6 text-gray-300">Exiting or refreshing will result in the <span className="text-red-400 font-bold">LOSS OF ALL CREDITS</span>. No cash-out is available in this demo.</p>
+                            <input 
+                                type="number" 
+                                placeholder="Enter Starting Credits" 
+                                className="w-full p-3 mb-4 bg-gray-700 rounded border border-gray-600 text-white"
+                                id="initialCredits"
+                            />
+                            <button 
+                                onClick={() => startGame(Number(document.getElementById('initialCredits').value) || 100)}
+                                className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded transition"
+                            >
+                                I UNDERSTAND & START
+                            </button>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="flex flex-col items-center justify-center min-h-screen p-4">
+                    <div className="w-full max-w-lg bg-gray-800 rounded-3xl border-4 border-yellow-600 shadow-2xl overflow-hidden">
+                        {/* Header */}
+                        <div className="bg-yellow-600 p-4 text-center">
+                            <h2 className="text-2xl font-black text-gray-900 tracking-tighter italic">ARISTOCRAT APEX-PRO WEB</h2>
+                        </div>
+
+                        {/* Stats */}
+                        <div className="flex justify-between p-6 bg-gray-900 border-b border-gray-700">
+                            <div className="text-center">
+                                <p className="text-xs text-gray-400 uppercase">Credits</p>
+                                <p className="text-3xl font-mono text-green-400">${credits}</p>
+                            </div>
+                            <div className="text-center text-red-500">
+                                <p className="text-xs text-gray-400 uppercase">Last Win</p>
+                                <p className="text-3xl font-mono">${lastWin}</p>
+                            </div>
+                        </div>
+
+                        {/* Reels */}
+                        <div className="flex justify-center gap-4 p-10 bg-black">
+                            {reels.map((s, i) => (
+                                <div key={i} className={`w-24 h-32 bg-gray-800 rounded-lg flex items-center justify-center text-5xl border-2 border-gray-700 ${spinning ? 'animate-reel' : ''}`}>
+                                    {s.char}
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Controls */}
+                        <div className="p-8 space-y-4">
+                            <button 
+                                onClick={spin}
+                                disabled={spinning || credits < bet}
+                                className={`w-full py-6 rounded-2xl text-2xl font-bold shadow-lg transform transition active:scale-95 ${spinning ? 'bg-gray-600' : 'bg-gradient-to-r from-yellow-500 to-yellow-700 text-gray-900 hover:brightness-110'}`}
+                            >
+                                {spinning ? 'SPINNING...' : `SPIN ($${bet})`}
+                            </button>
+                            
+                            <button 
+                                onClick={() => { if(confirm("Exit game? You will lose all remaining credits.")) window.location.reload(); }}
+                                className="w-full py-2 text-gray-500 hover:text-red-400 transition text-sm font-semibold uppercase tracking-widest"
+                            >
+                                [ X ] Terminate Session
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<SlotMachine />);
+    </script>
+</body>
+</html>
